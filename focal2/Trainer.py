@@ -1,35 +1,43 @@
 import tensorflow as tf
 import loader
-import unet_first_step_model
-import unet_second_step_model
+import unet
 import time
 import os
-from sys import platform
+import cv2
+import numpy as np
 
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+
+
+# option_name = 'focal_loss_2ch_180402-non_scaling'
+option_name = 'focal_true_2ch_180405-non_scaling'
 
 
 class Trainer:
-    def __init__(self, training_data_path, step, validation_percentage,
+    def __init__(self, training_data_path, model_path, validation_percentage,
                  initial_learning_rate, decay_step,
                  decay_rate, epoch, img_size,
-                 n_class, batch_size):
-        self.step = step
+                 n_class, batch_size,
+                 batch_norm_mode, depth):
+
         self.training_path = training_data_path
+        self.model_path = model_path
         self.val_data_cnt = validation_percentage
         self.init_learning = initial_learning_rate
         self.decay_step = decay_step
         self.decay_rate = decay_rate
         self.epoch_num = epoch
         self.batch_size = batch_size
-        if platform.startswith('win'):
-            self.batch_size = 5
+        self.batch_mode = batch_norm_mode
+        self.depth = depth
 
         self.data_loader = loader.DataLoader(img_size=img_size)
 
         print('data Loading Started')
         dstime = time.time()
         self.img_list, self.label_list, self.data_count = self.data_loader.data_list_load(self.training_path,
-                                                                                          step=self.step)
+                                                                                          mode='train')
         self.shuffled_img_list, self.shuffled_label_list = self.data_loader.data_shuffle(self.img_list, self.label_list)
         detime = time.time()
         print('data Loading Complete. Consumption Time :', detime - dstime)
@@ -44,33 +52,11 @@ class Trainer:
         print('Train Dataset Count:', len(self.trainX), 'Validation Dataset Count:', len(self.valX))
         print('data Split Complete. Consumption Time :', dsetime - dsstime)
 
-        if self.step == 'first':
-            os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2"
-            self.model = unet_first_step_model.Model(img_size=img_size, n_channel=1, n_class=n_class,
-                                                     batch_size=self.batch_size)
-            self.model_path = './models/first_step/Unet.ckpt'
+        self.model = unet.Model(batch_norm_mode=self.batch_mode, depth=self.depth, img_size=img_size, n_channel=1, n_class=n_class, batch_size=self.batch_size)
 
-            # Tensorboard
-            self.merged_summary = tf.summary.merge_all()
-            self.writer = tf.summary.FileWriter('./logs/train_180409/first_step')
-        elif self.step == 'second':
-            os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2"
-            self.model = unet_second_step_model.Model(img_size=img_size, n_channel=1, n_class=n_class,
-                                                     batch_size=self.batch_size)
-            self.model_path = './models/second_step/Unet.ckpt'
-
-            # tensorboard --logdir=./logs/
-            self.merged_summary = tf.summary.merge_all()
-            self.writer = tf.summary.FileWriter('./logs/train_180409/second_step')
-        elif self.step == 'one_step':
-            os.environ["CUDA_VISIBLE_DEVICES"] = "3, 4"
-            self.model = unet_first_step_model.Model(img_size=img_size, n_channel=1, n_class=n_class,
-                                                     batch_size=self.batch_size)
-            self.model_path = './models/one_step/Unet.ckpt'
-
-            # tensorboard --logdir=./logs/
-            self.merged_summary = tf.summary.merge_all()
-            self.writer = tf.summary.FileWriter('./logs/train_180409/one_step')
+        # TB
+        self.merged_summary = tf.summary.merge_all()
+        self.writer = tf.summary.FileWriter('./logs/' + option_name)
 
     def optimizer(self, global_step):
         exponential_decay_learning_rate = tf.train.exponential_decay(learning_rate=self.init_learning,
@@ -93,8 +79,11 @@ class Trainer:
         with tf.Session() as sess:
             saver = tf.train.Saver()
 
+            # TB
             self.writer.add_graph(sess.graph)
+
             sess.run(tf.global_variables_initializer())
+            sess.run(tf.local_variables_initializer())
 
             print("BEGIN TRAINING")
 
@@ -109,48 +98,88 @@ class Trainer:
 
                 trainX, trainY = self.data_loader.data_shuffle(self.trainX, self.trainY)
 
-
                 for idx in range(train_step):
                     batch_xs_list, batch_ys_list = self.data_loader.next_batch(trainX, trainY, idx, self.batch_size)
-                    batch_xs = self.data_loader.read_image_grey_resized(batch_xs_list)
-                    batch_ys = self.data_loader.read_label_grey_resized(batch_ys_list)
+                    # batch_xs = self.data_loader.read_image_grey_resized(batch_xs_list)
+                    # batch_ys = self.data_loader.read_label_grey_resized(batch_ys_list)
+                    batch_xs, batch_ys = self.data_loader.read_data(batch_xs_list, batch_ys_list, 'train')
 
-                    # (batch_size, 256, 256)
-                    batch_xs = self.data_loader.normalization(batch_xs)
-                    # batch_ys = self.data_loader.normalization(batch_ys)
+                    # print(batch_xs.shape, batch_ys.shape)
 
                     # _, cost = self.model.train(batch_xs, batch_ys, train_batch_size)
 
                     tr_feed_dict = {self.model.X: batch_xs, self.model.Y: batch_ys,
                                     self.model.training: True, self.model.drop_rate: 0.3}
 
-                    cost, _ = sess.run([self.model.loss, self.optimizer],
-                                                feed_dict=tr_feed_dict)
+                    cost, _ = sess.run([self.model.loss, self.optimizer], feed_dict=tr_feed_dict)
 
                     total_cost += cost
                     step += 1
-
-                    if step % 10 == 0:
-                        print('Epoch:', '[%d' % (epoch + 1), '/ %d]  ' % self.epoch_num, 'step:', step, 'total_step:',
-                              train_step, '  mini batch loss:', cost)
+                    print('Epoch:', '[%d' % (epoch + 1), '/ %d]  ' % self.epoch_num, 'step:', step, 'total_step:',
+                          train_step, '  mini batch loss:', cost)
 
                 for idx in range(val_step):
                     vali_batch_xs_list, vali_batch_ys_list = self.data_loader.next_batch(self.valX, self.valY, idx,
                                                                                          self.batch_size)
-                    vali_batch_xs = self.data_loader.read_image_grey_resized(vali_batch_xs_list)
-                    vali_batch_ys = self.data_loader.read_label_grey_resized(vali_batch_ys_list)
+                    vali_batch_xs, vali_batch_ys = self.data_loader.read_data(vali_batch_xs_list, vali_batch_ys_list, 'validation')
 
                     # vali_acc = self.model.get_accuracy(vali_batch_xs, vali_batch_ys, val_batch_size)
                     val_feed_dict = {self.model.X: vali_batch_xs, self.model.Y: vali_batch_ys,
                                      self.model.training: False, self.model.drop_rate: 0}
-                    vali_acc = sess.run(self.model.accuracy, feed_dict=val_feed_dict)
+                    vali_acc, predicted_result = sess.run((self.model.accuracy, self.model.foreground_predicted), feed_dict=val_feed_dict)
                     total_vali_acc += vali_acc
+                    # print(predicted_result.shape)
+
+                    if epoch % 5 == 0 or epoch == 0 or epoch+1 == self.epoch_num:
+                        val_img_save_path = './validation_result_imgs/' + option_name + '/' + str(epoch + 1)
+                        print(os.path.exists(val_img_save_path))
+                        if not os.path.exists(val_img_save_path):
+                            os.makedirs(val_img_save_path)
+
+                        for idx, label in enumerate(predicted_result):
+
+                            val_img_fullpath = val_img_save_path + '/' + str(idx) + '.png'
+
+                            test_image = vali_batch_xs[idx]
+                            # test_image = np.expand_dims(test_image, axis=3)
+                            test_image = np.expand_dims(test_image, axis=0)
+
+                            # print('test_image shape :', test_image.shape)
+                            # print('result_image shape :', label.shape)
+
+                            # pred_image = label
+                            _, pred_image = cv2.threshold(label, 0.4, 1.0, cv2.THRESH_BINARY)
+
+                            pred_image = np.expand_dims(pred_image, axis=3)
+                            pred_image = np.expand_dims(pred_image, axis=0)
+
+                            G = np.zeros([1, 256, 256, 1])
+                            B = np.zeros([1, 256, 256, 1])
+                            R = pred_image
+                            # print('before concatenation :', R.shape)
+
+                            pred_image = np.concatenate((B, G, R), axis=3)
+                            pred_image = np.squeeze(pred_image)
+
+                            tR = test_image
+                            tG = test_image
+                            tB = test_image
+
+                            test_image = np.concatenate((tB, tG, tR), axis=3)
+                            test_image = np.squeeze(test_image)
+
+                            test_image = test_image.astype(float)
+                            pred_image = pred_image * 255
+
+                            w = 37
+                            result = cv2.addWeighted(pred_image, float(100 - w) * 0.0001, test_image, float(w) * 0.0001, 0)
+                            cv2.imwrite(val_img_fullpath, result * 254)
 
                 end = time.time()
                 training_time = end - start
                 total_training_time += training_time
 
-                # Tensorboard
+                # TB
                 summary = sess.run(self.merged_summary, feed_dict=val_feed_dict)
                 self.writer.add_summary(summary, global_step=epoch)
 

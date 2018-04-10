@@ -160,7 +160,7 @@ def mean_iou(y_pred,y_true):
     """
     y_pred_ = tf.to_int64(y_pred > 0.5)
     y_true_ = tf.to_int64(y_true > 0.5)
-    score, up_opt = tf.metrics.mean_iou(y_true_, y_pred_, 1)
+    score, up_opt = tf.metrics.mean_iou(y_true_, y_pred_, 2)
     with tf.control_dependencies([up_opt]):
         score = tf.identity(score)
     return score
@@ -243,6 +243,13 @@ def focal_loss(output, target, use_class, gamma=2, smooth=1e-8):
     """
     pixel_wise_softmax = tf.nn.softmax(output)
 
+    # pixel_wise_softmax = tf.to_float(tf.to_int64(pixel_wise_softmax > 0.5))
+    # target = tf.to_float(tf.to_int64(target > 0.5))
+
+    # pixel_wise_softmax = tf.cast(tf.nn.softmax(output) > 0.5, dtype=tf.float32)
+    # target = tf.cast(target > 0.5, dtype=tf.float32)
+
+
     foreground_predicted, background_predicted = tf.split(pixel_wise_softmax, [1, 1], 3)
     foreground_truth, background_truth = tf.split(target, [1, 1], 3)
 
@@ -287,6 +294,9 @@ def dice_loss(output, target, loss_type='jaccard', axis=(1, 2, 3), smooth=1e-5):
 
     """
     pixel_wise_softmax = tf.nn.softmax(output)
+
+    # pixel_wise_softmax = tf.cast(tf.nn.softmax(output) > 0.5, dtype=tf.float32)
+    # target = tf.cast(target > 0.5, dtype=tf.float32)
 
     foreground_predicted, background_predicted = tf.split(pixel_wise_softmax, [1, 1], 3)
     foreground_truth, background_truth = tf.split(target, [1, 1], 3)
