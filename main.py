@@ -29,7 +29,7 @@ from Trainer import Trainer
 from Interlude import Interlude
 
 if __name__ == "__main__":
-    process_step = [1, 2, 3, 4]
+    process_step = [2, 3, 4]
     data_path = ["./new_data/"]
 
     # 혈관 라벨 데이터 생성
