@@ -13,6 +13,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # option_name = 'focal_loss_2ch_180402-non_scaling'
 option_name = 'dice_loss_2ch_180410-non_scaling'
 
+
 class Trainer:
     def __init__(self, training_data_path, model_path, validation_percentage,
                  initial_learning_rate, decay_step,
@@ -79,6 +80,7 @@ class Trainer:
             self.writer.add_graph(sess.graph)
 
             sess.run(tf.global_variables_initializer())
+            sess.run(tf.local_variables_initializer())
 
             print("BEGIN TRAINING")
 
@@ -95,8 +97,9 @@ class Trainer:
 
                 for idx in range(train_step):
                     batch_xs_list, batch_ys_list = self.data_loader.next_batch(trainX, trainY, idx, self.batch_size)
-                    batch_xs = self.data_loader.read_image_grey_resized(batch_xs_list)
-                    batch_ys = self.data_loader.read_label_grey_resized(batch_ys_list)
+                    # batch_xs = self.data_loader.read_image_grey_resized(batch_xs_list)
+                    # batch_ys = self.data_loader.read_label_grey_resized(batch_ys_list)
+                    batch_xs, batch_ys = self.data_loader.read_data(batch_xs_list, batch_ys_list, 'train')
 
                     # print(batch_xs.shape, batch_ys.shape)
 
@@ -113,10 +116,15 @@ class Trainer:
                           train_step, '  mini batch loss:', cost)
 
                 for idx in range(val_step):
+
+                    # vali_batch_xs_list, vali_batch_ys_list = self.data_loader.next_batch(self.valX, self.valY, idx,
+                    #                                                                      self.batch_size)
+                    # vali_batch_xs = self.data_loader.read_image_grey_resized(vali_batch_xs_list)
+                    # vali_batch_ys = self.data_loader.read_label_grey_resized(vali_batch_ys_list)
+
                     vali_batch_xs_list, vali_batch_ys_list = self.data_loader.next_batch(self.valX, self.valY, idx,
                                                                                          self.batch_size)
-                    vali_batch_xs = self.data_loader.read_image_grey_resized(vali_batch_xs_list)
-                    vali_batch_ys = self.data_loader.read_label_grey_resized(vali_batch_ys_list)
+                    vali_batch_xs, vali_batch_ys = self.data_loader.read_data(vali_batch_xs_list, vali_batch_ys_list, 'validation')
 
                     # vali_acc = self.model.get_accuracy(vali_batch_xs, vali_batch_ys, val_batch_size)
                     val_feed_dict = {self.model.X: vali_batch_xs, self.model.Y: vali_batch_ys,
@@ -130,8 +138,8 @@ class Trainer:
                         val_img_feed_dict = {self.model.X: vali_batch_xs, self.model.training: False, self.model.drop_rate: 0}
                         predicted_result = sess.run(self.model.foreground_predicted, feed_dict=val_img_feed_dict)
 
-                        val_img_save_path = '/home/bjh/new_work/180402/dice2/validation_result_imgs/' + option_name + '/' + str(epoch+1)
-                        print('Path Check :', os.path.exists(val_img_save_path))
+                        val_img_save_path = './validation_result_imgs/' + option_name + '/' + str(epoch+1)
+                        # print('Path Check :', os.path.exists(val_img_save_path))
 
                         if not os.path.exists(val_img_save_path):
                             os.makedirs(val_img_save_path)
@@ -148,7 +156,7 @@ class Trainer:
                             # print('result_image shape :', label.shape)
 
                             # pred_image = label
-                            _, pred_image = cv2.threshold(label, 0.7, 1.0, cv2.THRESH_BINARY)
+                            _, pred_image = cv2.threshold(label, 0.8, 1.0, cv2.THRESH_BINARY)
 
                             pred_image = np.expand_dims(pred_image, axis=3)
                             pred_image = np.expand_dims(pred_image, axis=0)
@@ -173,7 +181,7 @@ class Trainer:
 
                             w = 40
                             result = cv2.addWeighted(pred_image, float(100 - w) * 0.0001, test_image, float(w) * 0.0001, 0)
-                            cv2.imwrite(val_img_fullpath, result * 254)
+                            cv2.imwrite(val_img_fullpath, result * 255)
 
                         print('>>> Validationed Image Save Finished')
 

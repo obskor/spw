@@ -1,6 +1,5 @@
 import tensorflow as tf
 
-
 initializer = tf.contrib.layers.variance_scaling_initializer()
 regularizer = None # tf.contrib.layers.l2_regularizer(0.00001)
 def conv2D(name,inputs, filters, kernel_size, strides, padding='valid'):
@@ -28,7 +27,6 @@ def s_conv2D(name,inputs,filters,kernel_size,strides,padding='valid'):
                                           pointwise_regularizer=regularizer,
                                           name=name)
     return s_conv2D
-
 
 def deconv2D(name, inputs, filter_shape, output_shape, strides, padding='valid'):
     W = tf.get_variable(name+'W', filter_shape, initializer=initializer,regularizer=regularizer)
@@ -95,7 +93,6 @@ def iou_coe(output, target, threshold=0.5, smooth=1e-5):
     batch_iou = (inse + smooth) / (union + smooth)
     iou = tf.reduce_mean(batch_iou)
     return iou
-
 
 def GlobalAveragePooling2D(input, n_class, name):
     """
@@ -173,5 +170,14 @@ def fc(name,inputs,units):
     L2 = tf.layers.dense(inputs,units,name=name,kernel_initializer=initializer,kernel_regularizer=regularizer)
     return L2
 
-
+def mean_iou(y_pred,y_true):
+    """
+    Intersection Over Union for Image Segmentation Accuracy
+    """
+    y_pred_ = tf.to_int64(y_pred > 0.5)
+    y_true_ = tf.to_int64(y_true > 0.5)
+    score, up_opt = tf.metrics.mean_iou(y_true_, y_pred_, 2)
+    with tf.control_dependencies([up_opt]):
+        score = tf.identity(score)
+    return score
 

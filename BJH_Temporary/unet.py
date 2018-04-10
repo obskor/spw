@@ -4,7 +4,6 @@ import layer
 import loss
 
 class Model:
-
     def __init__(self, model_root_channel=8, img_size = 256, batch_size = 20, n_channel = 1, n_class = 2):
 
         self.drop_rate = tf.placeholder(tf.float32)
@@ -25,7 +24,9 @@ class Model:
 
         self.loss = loss.dice_loss(output=self.logits, target=self.Y)
 
-        self.accuracy = layer.iou_coe(output=self.logits, target=self.Y)
+        # self.accuracy = layer.iou_coe(output=self.logits, target=self.Y)
+        with tf.name_scope('Metrics'):
+            self.accuracy=layer.mean_iou(self.foreground_predicted, self.foreground_truth)
 
         # TB
         tf.summary.scalar('loss', self.loss)
@@ -160,13 +161,3 @@ class Model:
             print(out_seg.shape)
 
         return out_seg
-
-    #
-    # def train(self,x_data,y_data,batch_size):
-    #     return self.sess.run([self.trainer, self.loss], feed_dict={self.X: x_data, self.Y: y_data, self.drop_rate: 0.3, self.training: True, self.batch_size:batch_size})
-    #
-    # def get_accuracy(self,x_data,y_data,batch_size):
-    #     return self.sess.run(self.accuracy, feed_dict={self.X: x_data, self.Y: y_data, self.drop_rate: 0, self.training: False, self.batch_size:batch_size})
-
-    # def show_result(self,test_image,batch_size):
-    #     return self.sess.run(self.predicted, feed_dict={self.X:test_ima ge,self.drop_rate: 0, self.training: False, self.batch_size:batch_size})
