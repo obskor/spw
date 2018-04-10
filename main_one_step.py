@@ -28,19 +28,12 @@ from img_thresholding import img_threshold
 from Trainer import Trainer
 
 if __name__ == "__main__":
-    process_step = [2]
     data_path = ["./new_data/"]
 
-    # 혈관 라벨 데이터 생성
-    if 1 in process_step:
-        img_threshold(data_path)
-
-    # 혈관 학습
-    if 2 in process_step:
-        first_trainer = Trainer(training_data_path=data_path, step='one_step', validation_percentage=10,
-                                initial_learning_rate=0.0001, decay_step=2500,
-                                decay_rate=0.9, epoch=200, img_size=256,
-                                n_class=2, batch_size=20)
-        print('First Step Train Start!')
-        first_trainer.train()
-        print('First Step Train complete!')
+    first_trainer = Trainer(training_data_path=data_path, step='one_step', validation_percentage=10,
+                            initial_learning_rate=0.0001, decay_step=2500,
+                            decay_rate=0.9, epoch=200, img_size=256,
+                            n_class=2, batch_size=20)
+    print('First Step Train Start!')
+    first_trainer.train()
+    print('First Step Train complete!')
