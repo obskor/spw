@@ -6,7 +6,7 @@ import os
 import cv2
 import numpy as np
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 class TrainerSecond:
     def __init__(self, training_data_path, model_path, validation_percentage,

@@ -12,7 +12,7 @@ import traceback
 import logging
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 LOG_ENABLE = False
 

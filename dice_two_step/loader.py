@@ -208,8 +208,8 @@ class DataLoader:
                 # augmentation option number generator
                 # randnum 0 : original
                 if mode == 'train':
-                    random_number_for_flip = int(np.random.randint(0, 3, size=1)[0])
-                    random_number_for_rotate = int(np.random.randint(0, 5, size=1)[0])
+                    random_number_for_flip = int(np.random.randint(1, 3, size=1)[0])
+                    random_number_for_rotate = int(np.random.randint(1, 5, size=1)[0])
 
                 else:
                     random_number_for_flip = 0
@@ -245,8 +245,8 @@ class DataLoader:
                 y_rotated_img_2ch = np.concatenate((y_rotated_img, y_rotated_bg), axis=2)
 
                 # not augmentation
-                # x_data.append(x_original)
-                # y_data.append(y_ori_2ch)
+                x_data.append(x_original)
+                y_data.append(y_ori_2ch)
 
                 # augmentation
                 x_data.append(x_rotated_img)
