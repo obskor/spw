@@ -206,9 +206,10 @@ class DataLoader:
 
             for i in range(len(x_list)):
                 # augmentation option number generator
+                # randnum 0 : original
                 if mode == 'train':
-                    random_number_for_flip = int(np.random.randint(1, 3, size=1)[0])
-                    random_number_for_rotate = int(np.random.randint(1, 5, size=1)[0])
+                    random_number_for_flip = int(np.random.randint(0, 3, size=1)[0])
+                    random_number_for_rotate = int(np.random.randint(0, 5, size=1)[0])
 
                 else:
                     random_number_for_flip = 0
@@ -217,28 +218,38 @@ class DataLoader:
                 # print(random_number_for_rotate, random_number_for_flip)
 
                 # 원본 X
-                x_original = cv2.resize(x_list[i], (256, 256), interpolation=cv2.INTER_AREA)
+                x_original = cv2.imread(x_list[i], cv2.IMREAD_GRAYSCALE)
+                x_original = cv2.resize(x_original, (256, 256), interpolation=cv2.INTER_AREA)
 
                 # 플립/로테이션한 X
-                x_img = cv2.imread(x_original, cv2.IMREAD_GRAYSCALE)
-                x_img = self._data_rotation(self._data_flip(x_img, random_number_for_flip), random_number_for_rotate)
+                x_rotated_img = self._data_rotation(self._data_flip(x_original, random_number_for_flip), random_number_for_rotate)
 
                 # 원본 Y
-                y_original = cv2.resize(y_list[i], (256, 256), interpolation=cv2.INTER_AREA)
-
-                # 플립/로테이션한 Y
-                y_img = cv2.imread(y_original, cv2.IMREAD_GRAYSCALE)
-                y_img = self._data_rotation(self._data_flip(y_img, random_number_for_flip), random_number_for_rotate)
+                y_original = cv2.imread(y_list[i], cv2.IMREAD_GRAYSCALE)
+                y_original = cv2.resize(y_original, (256, 256), interpolation=cv2.INTER_AREA)
 
                 # Y 색반전해서 2채널 만들기
-                y_img1 = cv2.threshold(y_img, 124, 255, cv2.THRESH_BINARY)[1]
-                y_img2 = cv2.threshold(y_img, 124, 255, cv2.THRESH_BINARY_INV)[1]
-                y_img1 = y_img1.reshape([256, 256, 1])
-                y_img2 = y_img2.reshape([256, 256, 1])
-                y_img = np.concatenate((y_img1, y_img2), axis=2)
-                # print(img)
+                y_original_img = cv2.threshold(y_original, 124, 255, cv2.THRESH_BINARY)[1]
+                y_original_bg = cv2.threshold(y_original, 124, 255, cv2.THRESH_BINARY_INV)[1]
+                y_original_img = y_original_img.reshape([256, 256, 1])
+                y_original_bg = y_original_bg.reshape([256, 256, 1])
+                y_ori_2ch = np.concatenate((y_original_img, y_original_bg), axis=2)
 
-                x_data.append(x_img)
-                y_data.append(y_img)
+                # 플립/로테이션한 Y
+                y_rotated_img = self._data_rotation(self._data_flip(y_original, random_number_for_flip), random_number_for_rotate)
+
+                y_rotated_img = cv2.threshold(y_rotated_img, 124, 255, cv2.THRESH_BINARY)[1]
+                y_rotated_bg = cv2.threshold(y_rotated_img, 124, 255, cv2.THRESH_BINARY_INV)[1]
+                y_rotated_img = y_rotated_img.reshape([256, 256, 1])
+                y_rotated_bg = y_rotated_bg.reshape([256, 256, 1])
+                y_rotated_img_2ch = np.concatenate((y_rotated_img, y_rotated_bg), axis=2)
+
+                # not augmentation
+                # x_data.append(x_original)
+                # y_data.append(y_ori_2ch)
+
+                # augmentation
+                x_data.append(x_rotated_img)
+                y_data.append(y_rotated_img_2ch)
 
             return np.array(x_data).reshape([-1, 256, 256, 1]), np.array(y_data).reshape([-1, 256, 256, 2])
