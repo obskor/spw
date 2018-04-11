@@ -207,8 +207,8 @@ class DataLoader:
             for i in range(len(x_list)):
                 # augmentation option number generator
                 if mode == 'train':
-                    random_number_for_flip = int(np.random.randint(0, 3, size=1)[0])
-                    random_number_for_rotate = int(np.random.randint(0, 5, size=1)[0])
+                    random_number_for_flip = int(np.random.randint(1, 3, size=1)[0])
+                    random_number_for_rotate = int(np.random.randint(1, 5, size=1)[0])
 
                 else:
                     random_number_for_flip = 0
@@ -216,17 +216,21 @@ class DataLoader:
 
                 # print(random_number_for_rotate, random_number_for_flip)
 
-                x_img = cv2.imread(x_list[i], cv2.IMREAD_GRAYSCALE)
+                # 원본 X
+                x_original = cv2.resize(x_list[i], (256, 256), interpolation=cv2.INTER_AREA)
+
+                # 플립/로테이션한 X
+                x_img = cv2.imread(x_original, cv2.IMREAD_GRAYSCALE)
                 x_img = self._data_rotation(self._data_flip(x_img, random_number_for_flip), random_number_for_rotate)
-                # print(x_img)
-                # print(x_img.shape)
-                x_img = cv2.resize(x_img, (256, 256), interpolation=cv2.INTER_AREA)
 
-                x_data.append(x_img)
+                # 원본 Y
+                y_original = cv2.resize(y_list[i], (256, 256), interpolation=cv2.INTER_AREA)
 
-                y_img = cv2.imread(y_list[i], cv2.IMREAD_GRAYSCALE)
+                # 플립/로테이션한 Y
+                y_img = cv2.imread(y_original, cv2.IMREAD_GRAYSCALE)
                 y_img = self._data_rotation(self._data_flip(y_img, random_number_for_flip), random_number_for_rotate)
-                y_img = cv2.resize(y_img, (256, 256), interpolation=cv2.INTER_AREA)
+
+                # Y 색반전해서 2채널 만들기
                 y_img1 = cv2.threshold(y_img, 124, 255, cv2.THRESH_BINARY)[1]
                 y_img2 = cv2.threshold(y_img, 124, 255, cv2.THRESH_BINARY_INV)[1]
                 y_img1 = y_img1.reshape([256, 256, 1])
@@ -234,6 +238,7 @@ class DataLoader:
                 y_img = np.concatenate((y_img1, y_img2), axis=2)
                 # print(img)
 
+                x_data.append(x_img)
                 y_data.append(y_img)
 
             return np.array(x_data).reshape([-1, 256, 256, 1]), np.array(y_data).reshape([-1, 256, 256, 2])

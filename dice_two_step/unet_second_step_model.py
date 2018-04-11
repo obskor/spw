@@ -28,13 +28,14 @@ class Model:
 
         # # Dice_Loss
         with tf.name_scope('Loss'):
-            self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.logits, labels=self.Y))
-            # self.loss=utils.dice_loss(output=self.logits, target=self.Y)
+            # self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.logits, labels=self.Y))
+            self.loss=utils.dice_loss(output=self.logits, target=self.Y)
+            # # Focal_Loss
+            # self.loss=utils.focal_loss(output=self.logits, target=self.Y, use_class=False, gamma=2, smooth=1e-8)
 
-        # # Focal_Loss
-        # self.loss=utils.focal_loss(output=self.logits, target=self.Y, use_class=False, gamma=2, smooth=1e-8)
         with tf.name_scope('Metrics'):
             self.accuracy=utils.mean_iou(self.foreground_predicted,self.foreground_truth)
+
 
         # TB
         tf.summary.scalar('loss', self.loss)

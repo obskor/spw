@@ -9,7 +9,7 @@ if __name__ == "__main__":
     full_data_path = '/home/bjh/aneurysm_new_data_train/'
     label_only_data_path = ['/home/bjh/new_train_img_label_only/']
 
-    option_name = '180411-twostep-ce-label_only-batch_off'
+    option_name = '180411-twostep-dice-label_only-batch_off_full_aug'
 
     # 혈관 라벨 데이터 생성
     if 1 in process_step:

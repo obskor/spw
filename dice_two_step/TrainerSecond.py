@@ -6,7 +6,7 @@ import os
 import cv2
 import numpy as np
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 class TrainerSecond:
     def __init__(self, training_data_path, model_path, validation_percentage,
@@ -128,10 +128,7 @@ class TrainerSecond:
                     vali_acc, predicted_result = sess.run((self.model.accuracy, self.model.foreground_predicted), feed_dict=val_feed_dict)
                     total_vali_acc += vali_acc
 
-                    print(str(epoch))
-
-                    if epoch+1 % 5 == 0 or epoch == 0 or epoch+1 == self.epoch_num:
-                        print('in!')
+                    if (epoch+1) % 5 == 0 or epoch == 0 or (epoch+1) == self.epoch_num:
                         for idx, label in enumerate(predicted_result):
                             val_img_save_path = './validation_result_imgs/' + self.option_name + '/' + str(epoch)
                             if not os.path.exists(val_img_save_path):

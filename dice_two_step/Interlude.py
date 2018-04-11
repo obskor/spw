@@ -12,7 +12,7 @@ import traceback
 import logging
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 LOG_ENABLE = False
 
@@ -71,8 +71,10 @@ class Interlude:
                 pre_y = self._load_img(second_pre_Y_dir_full_path, img_files)
 
                 self.model.batch_size = len(x)
+
                 try:
                     labels = self._predict(sess, x)
+
                 except Exception as e:
                     logging.error(traceback.format_exc())
                     print('error file at : ', first_X_list, img_files)
@@ -81,6 +83,9 @@ class Interlude:
                 for idx, label in enumerate(labels):
                     # MRI 사진 위에 라벨을 오버레이한 이미지 한 장씩 보기
                     # self._show_label_overlapped_img(label, first_X_dir_full_path, img_files[idx])
+
+                    # first model의 output을 one-hot화
+                    label = cv2.threshold(label * 255, 120, 255, cv2.THRESH_BINARY)
 
                     # 혈관 라벨 데이터 저장
                     self._save_first_Y(os.path.join(first_Y_dir_full_path, img_files[idx]), label)
@@ -186,7 +191,7 @@ class Interlude:
     # 255를 곱하여 값 범위를 0~1에서 0~255로 바꾸어 저장한다.
     ###
     def _save_first_Y(self, path, img):
-        cv2.imwrite(path, img*255)
+        cv2.imwrite(path, img)
 
     def _create_second_X(self, path, label, X):
         cv2.imwrite(path, label * X)
