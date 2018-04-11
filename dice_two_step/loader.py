@@ -38,7 +38,7 @@ class DataLoader:
 
 
     # 데이터 경로 로더
-    def data_list_load(self, path, mode, step):
+    def data_list_load(self, path, mode, step, option_name):
 
         if mode == 'train':
             # 데이터셋 경로를 담아 둘 빈 리스트 생성
@@ -49,8 +49,8 @@ class DataLoader:
                 x_path = '/x'
                 y_path = '/first_y'
             elif step == 2:
-                x_path = '/second_x'
-                y_path = '/second_y'
+                x_path = '/' + option_name + '/second_x'
+                y_path = '/' + option_name + '/second_y'
 
             # 입력된 모든 경로에 대해서 이미지 데이터 경로를 절대경로로 만든 다음 위에서 생성한 리스트에 저장하고 반환
             for data_path in path:

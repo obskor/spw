@@ -8,15 +8,12 @@ import numpy as np
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-option_name = 'dice_2ch_180410-non_scaling_two_step_second'
-
-
 class TrainerSecond:
     def __init__(self, training_data_path, model_path, validation_percentage,
                  initial_learning_rate, decay_step,
                  decay_rate, epoch, img_size,
                  n_class, batch_size,
-                 batch_norm_mode, depth):
+                 batch_norm_mode, depth, option_name):
 
         self.training_path = training_data_path
         self.model_path = model_path
@@ -28,13 +25,14 @@ class TrainerSecond:
         self.batch_size = batch_size
         self.batch_mode = batch_norm_mode
         self.depth = depth
+        self.option_name = option_name + '-second_step'
 
         self.data_loader = loader.DataLoader(img_size=img_size)
 
         print('data Loading Started')
         dstime = time.time()
         self.img_list, self.label_list, self.data_count = self.data_loader.data_list_load(self.training_path,
-                                                                                          mode='train', step=2)
+                                                                                          mode='train', step=2, option_name=self.option_name)
         self.shuffled_img_list, self.shuffled_label_list = self.data_loader.data_shuffle(self.img_list, self.label_list)
         detime = time.time()
         print('data Loading Complete. Consumption Time :', detime - dstime)
@@ -129,12 +127,13 @@ class TrainerSecond:
                                      self.model.training: False, self.model.drop_rate: 0}
                     vali_acc, predicted_result = sess.run((self.model.accuracy, self.model.foreground_predicted), feed_dict=val_feed_dict)
                     total_vali_acc += vali_acc
-                    print(predicted_result.shape)
+
+                    print(str(epoch))
 
                     if epoch+1 % 5 == 0 or epoch == 0 or epoch+1 == self.epoch_num:
-
+                        print('in!')
                         for idx, label in enumerate(predicted_result):
-                            val_img_save_path = './validation_result_imgs/' + option_name + '/' + str(epoch)
+                            val_img_save_path = './validation_result_imgs/' + self.option_name + '/' + str(epoch)
                             if not os.path.exists(val_img_save_path):
                                 os.makedirs(val_img_save_path)
 

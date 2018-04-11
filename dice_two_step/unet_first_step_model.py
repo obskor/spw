@@ -28,7 +28,8 @@ class Model:
 
         # # Dice_Loss
         with tf.name_scope('Loss'):
-            self.loss=utils.dice_loss(output=self.logits, target=self.Y)
+            # self.loss=utils.dice_loss(output=self.logits, target=self.Y)
+            self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.logits, labels=self.Y))
 
         # # Focal_Loss
         # self.loss=utils.focal_loss(output=self.logits, target=self.Y, use_class=False, gamma=2, smooth=1e-8)

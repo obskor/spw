@@ -18,10 +18,11 @@ LOG_ENABLE = False
 
 
 class Interlude:
-    def __init__(self, data_path, model_path, depth, n_class=2, batch_size=20, img_size=256):
+    def __init__(self, data_path, model_path, depth, option_name, n_class=2, batch_size=20, img_size=256):
         self.img_size = img_size
         self.batch_size = batch_size
         self.depth = depth
+        self.option_name = option_name
 
         # load data directories
         self.paths = data_path
@@ -52,11 +53,11 @@ class Interlude:
             # Second Step Y의 근간이 되는 뇌동맥류 라벨 데이터
             second_pre_Y_dir_full_path = os.path.join(img_dir, 'y')
             # First Step Y를 저장할 경로
-            first_Y_dir_full_path = os.path.join(img_dir, 'first_output')
+            first_Y_dir_full_path = os.path.join(img_dir, self.option_name + '/first_output')
             # Second Step X를 저장할 경로
-            second_X_dir_full_path = os.path.join(img_dir, 'second_x')
+            second_X_dir_full_path = os.path.join(img_dir, self.option_name + '/second_x')
             # Second Step Y를 저장할 경로
-            second_Y_dir_full_path = os.path.join(img_dir, 'second_y')
+            second_Y_dir_full_path = os.path.join(img_dir, self.option_name + '/second_y')
 
             # First Step X List
             first_X_list = os.listdir(first_X_dir_full_path)
@@ -145,11 +146,11 @@ class Interlude:
                 subroot = os.path.join(subroot, 'img')
                 if 'x' in os.listdir(os.path.join(path, subroot)):
                     if 'first_output' not in os.listdir(os.path.join(path, subroot)):
-                        os.mkdir(os.path.join(path, subroot, 'first_output'))
+                        os.mkdir(os.path.join(path, subroot, self.option_name, 'first_output'))
                     if 'second_x' not in os.listdir(os.path.join(path, subroot)):
-                        os.mkdir(os.path.join(path, subroot, 'second_x'))
+                        os.mkdir(os.path.join(path, subroot, self.option_name, 'second_x'))
                     if 'second_y' not in os.listdir(os.path.join(path, subroot)):
-                        os.mkdir(os.path.join(path, subroot, 'second_y'))
+                        os.mkdir(os.path.join(path, subroot, self.option_name, 'second_y'))
 
                 dir_list.append(os.path.join(path, subroot))
 

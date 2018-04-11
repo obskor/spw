@@ -4,10 +4,12 @@ from img_thresholding import img_threshold
 from Interlude import Interlude
 
 if __name__ == "__main__":
-    process_step = [4]
+    process_step = [2, 3, 4]
 
     full_data_path = '/home/bjh/aneurysm_new_data_train/'
     label_only_data_path = ['/home/bjh/new_train_img_label_only/']
+
+    option_name = '180411-twostep-ce-label_only-batch_off'
 
     # 혈관 라벨 데이터 생성
     if 1 in process_step:
@@ -18,7 +20,7 @@ if __name__ == "__main__":
                                initial_learning_rate=0.001, decay_step=2500,
                                decay_rate=0.9, epoch=100, img_size=256,
                                n_class=2, batch_size=50,
-                               batch_norm_mode='off', depth=5)
+                               batch_norm_mode='off', depth=5, option_name=option_name)
         unet_trainer.train()
 
     if 3 in process_step:
@@ -34,7 +36,7 @@ if __name__ == "__main__":
                                initial_learning_rate=0.001, decay_step=2500,
                                decay_rate=0.9, epoch=100, img_size=256,
                                n_class=2, batch_size=50,
-                               batch_norm_mode='off', depth=5)
+                               batch_norm_mode='off', depth=5, option_name=option_name)
         print('Second Step Train Start!')
         second_trainer.train()
         print('Second Step Train complete!')
