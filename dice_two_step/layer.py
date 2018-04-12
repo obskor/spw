@@ -30,6 +30,30 @@ def s_conv2D(name,inputs,filters,kernel_size,strides,padding='valid'):
     return s_conv2D
 
 
+
+def re_conv2D(name, inputs, output_shape):
+    """
+    https://distill.pub/2016/deconv-checkerboard/
+    """
+
+    resize_layer = tf.image.resize_nearest_neighbor(images=inputs,
+                                                    size=[output_shape[1], output_shape[2]],
+                                                    name=name+'_resizing')
+
+    # padding_layer = tf.pad(resize_layer)
+    # conv_layer = conv2D(padding_layer)
+
+    # conv2D('conv3_1', pool2, channel_n, [3, 3], [1, 1], 'same')
+    conv_layer = conv2D(name=name+'_conv',
+                        inputs = resize_layer,
+                        filters = output_shape[3],
+                        kernel_size = [3, 3],
+                        strides = [1, 1],
+                        padding='same')
+
+    return conv_layer
+
+
 def deconv2D(name, inputs, filter_shape, output_shape, strides, padding='valid'):
     W = tf.get_variable(name+'W', filter_shape, initializer=initializer,regularizer=regularizer)
     shape = tf.shape(inputs)

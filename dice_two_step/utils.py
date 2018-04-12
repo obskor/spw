@@ -319,3 +319,6 @@ def cross_entropy(output, target):
     """
     return tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=target, logits=output, name='cross_entropy_loss'))
 
+
+
+

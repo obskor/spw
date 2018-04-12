@@ -225,9 +225,12 @@ class Model:
             for i in reversed(range(self.depth_n)):
                 # deconv / concat
                 conv_shape *= 2
-                up_deconv[i] = layer.deconv2D('deconv_' + str(i),  next_input, [3, 3, channel_n // 2, channel_n],
-                                     [self.batch_size, conv_shape, conv_shape, channel_n // 2], [1, 2, 2, 1], 'SAME')
-                up_deconv[i] = tf.reshape(up_deconv[i], shape=[self.batch_size, conv_shape, conv_shape, channel_n // 2])
+
+                up_deconv[i] = layer.re_conv2D(name='reconv_' + str(i), inputs=next_input, output_shape=[-1, conv_shape, conv_shape, channel_n // 2])
+                # 요거 대신 re_conv2D
+                # up_deconv[i] = layer.deconv2D('deconv_' + str(i),  next_input, [3, 3, channel_n // 2, channel_n],
+                #                      [self.batch_size, conv_shape, conv_shape, channel_n // 2], [1, 2, 2, 1], 'SAME')
+                # up_deconv[i] = tf.reshape(up_deconv[i], shape=[self.batch_size, conv_shape, conv_shape, channel_n // 2])
                 up_deconv[i] = layer.BatchNorm('deBN_' + str(i), up_deconv[i], self.training)
                 up_deconv[i] = layer.p_relu('deact_' + str(i), up_deconv[i])
                 up_deconv[i] = layer.concat('concat_' + str(i), [up_deconv[i], down_conv[i]], 3)
