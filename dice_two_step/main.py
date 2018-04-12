@@ -4,12 +4,12 @@ from img_thresholding import img_threshold
 from Interlude import Interlude
 
 if __name__ == "__main__":
-    process_step = [2, 3, 4]
+    process_step = [3, 4]
 
     full_data_path = '/home/bjh/aneurysm_new_data_train/'
     label_only_data_path = ['/home/bjh/new_train_img_label_only/']
 
-    option_name = '180411-twostep-dice-label_only-batch_off_half_aug'
+    option_name = '180412-twostep-dice-label_only-batch_off_half_aug_bug_fixed'
 
     # 혈관 라벨 데이터 생성
     if 1 in process_step:
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     if 3 in process_step:
         print('Interlude Step Start!')
         Interluder = Interlude(img_size=256, data_path=label_only_data_path, model_path='./model/first_step/Unet.ckpt',
-                               batch_size=20, n_class=2, depth=5)
+                               batch_size=20, n_class=2, depth=5, option_name=option_name)
         Interluder.process()
         print('Interlude Step complete!')
 

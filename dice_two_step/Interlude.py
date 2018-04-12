@@ -53,12 +53,11 @@ class Interlude:
             # Second Step Y의 근간이 되는 뇌동맥류 라벨 데이터
             second_pre_Y_dir_full_path = os.path.join(img_dir, 'y')
             # First Step Y를 저장할 경로
-            first_Y_dir_full_path = os.path.join(img_dir, self.option_name + '/first_output')
+            first_Y_dir_full_path = os.path.join(img_dir, self.option_name, 'first_output')
             # Second Step X를 저장할 경로
-            second_X_dir_full_path = os.path.join(img_dir, self.option_name + '/second_x')
+            second_X_dir_full_path = os.path.join(img_dir, self.option_name, 'second_x')
             # Second Step Y를 저장할 경로
-            second_Y_dir_full_path = os.path.join(img_dir, self.option_name + '/second_y')
-
+            second_Y_dir_full_path = os.path.join(img_dir, self.option_name, 'second_y')
             # First Step X List
             first_X_list = os.listdir(first_X_dir_full_path)
 
@@ -85,7 +84,8 @@ class Interlude:
                     # self._show_label_overlapped_img(label, first_X_dir_full_path, img_files[idx])
 
                     # first model의 output을 one-hot화
-                    label = cv2.threshold(label * 255, 120, 255, cv2.THRESH_BINARY)
+                    _, label = cv2.threshold(label, 0.5, 1, cv2.THRESH_BINARY)
+                    label = np.reshape(label, [256, 256, 1])
 
                     # 혈관 라벨 데이터 저장
                     self._save_first_Y(os.path.join(first_Y_dir_full_path, img_files[idx]), label)
@@ -149,12 +149,14 @@ class Interlude:
             for subroot in subroots:
                 # img가 서브디렉토리로 있어서 경로에 추가
                 subroot = os.path.join(subroot, 'img')
+                if self.option_name not in os.listdir(os.path.join(path, subroot)):
+                    os.mkdir(os.path.join(path, subroot, self.option_name))
                 if 'x' in os.listdir(os.path.join(path, subroot)):
-                    if 'first_output' not in os.listdir(os.path.join(path, subroot)):
+                    if 'first_output' not in os.listdir(os.path.join(path, subroot, self.option_name)):
                         os.mkdir(os.path.join(path, subroot, self.option_name, 'first_output'))
-                    if 'second_x' not in os.listdir(os.path.join(path, subroot)):
+                    if 'second_x' not in os.listdir(os.path.join(path, subroot, self.option_name)):
                         os.mkdir(os.path.join(path, subroot, self.option_name, 'second_x'))
-                    if 'second_y' not in os.listdir(os.path.join(path, subroot)):
+                    if 'second_y' not in os.listdir(os.path.join(path, subroot, self.option_name)):
                         os.mkdir(os.path.join(path, subroot, self.option_name, 'second_y'))
 
                 dir_list.append(os.path.join(path, subroot))
@@ -191,7 +193,7 @@ class Interlude:
     # 255를 곱하여 값 범위를 0~1에서 0~255로 바꾸어 저장한다.
     ###
     def _save_first_Y(self, path, img):
-        cv2.imwrite(path, img)
+        cv2.imwrite(path, img*255)
 
     def _create_second_X(self, path, label, X):
         cv2.imwrite(path, label * X)

@@ -25,7 +25,7 @@ class TrainerSecond:
         self.batch_size = batch_size
         self.batch_mode = batch_norm_mode
         self.depth = depth
-        self.option_name = option_name + '-second_step'
+        self.option_name = option_name
 
         self.data_loader = loader.DataLoader(img_size=img_size)
 
@@ -130,7 +130,7 @@ class TrainerSecond:
 
                     if (epoch+1) % 5 == 0 or epoch == 0 or (epoch+1) == self.epoch_num:
                         for idx, label in enumerate(predicted_result):
-                            val_img_save_path = './validation_result_imgs/' + self.option_name + '/' + str(epoch)
+                            val_img_save_path = './validation_result_imgs/' + self.option_name + '-second_step/' + str(epoch)
                             if not os.path.exists(val_img_save_path):
                                 os.makedirs(val_img_save_path)
 
