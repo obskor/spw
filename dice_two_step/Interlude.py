@@ -11,14 +11,12 @@ import numpy as np
 import traceback
 import logging
 
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
 LOG_ENABLE = False
 
-
 class Interlude:
-    def __init__(self, data_path, model_path, depth, option_name, n_class=2, batch_size=20, img_size=256):
+    def __init__(self, data_path, model_path, depth, option_name, use_gpu, n_class=2, batch_size=20, img_size=256):
+        os.environ["CUDA_VISIBLE_DEVICES"] = use_gpu
+
         self.img_size = img_size
         self.batch_size = batch_size
         self.depth = depth
@@ -84,7 +82,7 @@ class Interlude:
                     # self._show_label_overlapped_img(label, first_X_dir_full_path, img_files[idx])
 
                     # first model의 output을 one-hot화
-                    _, label = cv2.threshold(label, 0.5, 1, cv2.THRESH_BINARY)
+                    _, label = cv2.threshold(label, 0.4, 1, cv2.THRESH_BINARY)
                     label = np.reshape(label, [256, 256, 1])
 
                     # 혈관 라벨 데이터 저장

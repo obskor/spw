@@ -7,14 +7,14 @@ import cv2
 import numpy as np
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
 class Trainer:
     def __init__(self, training_data_path, model_path, validation_percentage,
                  initial_learning_rate, decay_step,
                  decay_rate, epoch, img_size,
                  n_class, batch_size,
-                 batch_norm_mode, depth, option_name):
+                 batch_norm_mode, depth, option_name, use_gpu):
+
+        os.environ["CUDA_VISIBLE_DEVICES"] = use_gpu
 
         self.training_path = training_data_path
         self.model_path = model_path

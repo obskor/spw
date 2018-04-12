@@ -1,5 +1,6 @@
 import tensorflow as tf
 import utils
+import layer
 
 
 class Model:
@@ -18,7 +19,7 @@ class Model:
         self.Y=tf.placeholder(tf.float32, [None, img_size, img_size, n_class], name='Y')
 
         self.logits=self.neural_net()
-
+        print(self.logits.shape)
         self.foreground_predicted, self.background_predicted=tf.split(tf.nn.softmax(self.logits), [1, 1], 3)
 
         self.foreground_truth, self.background_truth=tf.split(self.Y, [1, 1], 3)
@@ -175,124 +176,186 @@ class Model:
         return tf.get_variable(name, shape, initializer=tf.contrib.layers.xavier_initializer())
     
     def neural_net(self):
-        """
-        Without Batch Normalization
-        """
+        ##############################################################################################
+        # * 크기 축소층
+        # 1. Convolution-BN-Activation 2회 반복
+        # 2. Max-Pooling으로 Feature Size를 반으로 줄이고, 다음 단계에서는 채널 수를 2배로 늘린다.
+        # 3. 1~2를 지정한 depth 횟수만큼 반복한다.
+        ##############################################################################################
+        with tf.name_scope('down'):
+            channel_n = self.model_channel
+            next_input = self.X
+            down_conv = [0] * self.depth_n
+            down_pool = [0] * self.depth_n
+            for i in range(self.depth_n):
+                down_conv[i] = layer.conv2D('conv' + str(i) + '_1', next_input, channel_n, [3, 3], [1, 1], 'same')
+                down_conv[i] = layer.BatchNorm('BN' + str(i) + '_1', down_conv[i], self.training)
+                down_conv[i] = layer.p_relu('act' + str(i) + '_1', down_conv[i])
+                down_conv[i] = layer.conv2D('conv' + str(i) + '_2', down_conv[i], channel_n, [3, 3], [1, 1], 'same')
+                down_conv[i] = layer.BatchNorm('BN' + str(i) + '_2', down_conv[i], self.training)
+                down_conv[i] = layer.p_relu('act' + str(i) + '_2', down_conv[i])
 
-        channel_n=self.model_channel  # 8
-        X = self.X
-        down_layer = [0] * self.depth_n
-        down_weight1 = [0] * self.depth_n
-        down_weight2 = [0] * self.depth_n
-        up_layer_deconv = [0] * self.depth_n
-        up_layer_conv = [0] * self.depth_n
-        up_weight1 = [0] * self.depth_n
-        up_weight2 = [0] * self.depth_n
+                # depth 4 기준 256->128->64->32->16
+                down_pool[i] = layer.maxpool('pool1', down_conv[i], [2, 2], [2, 2], 'same')
 
-        # Down-sampling
-        for depth in range(self.depth_n):
-            layer_name = 'DownLayer' + str(depth + 1)
-            if depth + 1 == 1:
-                before_channel = 1
-            else:
-                before_channel = channel_n // 2
+                channel_n *= 2
+                next_input = down_pool[i]
 
-            with tf.name_scope(layer_name):
-                # print('before :', before_channel, 'after :', channel_n)
-                down_weight1[depth] = self.get_variable(layer_name+"_W1", [3, 3, before_channel, channel_n])
-                down_layer[depth] = tf.nn.conv2d(X, down_weight1[depth], strides=[1, 1, 1, 1], padding='SAME')
+        with tf.name_scope('keep'):
+            conv_keep = layer.conv2D('conv_keep_1', next_input, channel_n, [3, 3], [1, 1], 'same')
+            conv_keep = layer.BatchNorm('BN5_1', conv_keep, self.training)
+            conv_keep = layer.p_relu('act5_1', conv_keep)
+            conv_keep = layer.conv2D('conv_keep_2', conv_keep, channel_n, [3, 3], [1, 1], 'same')
+            conv_keep = layer.BatchNorm('BN5_2', conv_keep, self.training)
+            conv_keep = layer.p_relu('act5_2', conv_keep)
+            # print(conv_keep.shape)
 
-                # if self.batch_mode == 'on':
-                #     down_layer[depth] = utils.BatchNorm(layer_name+"_BN1", down_layer[depth], self.training)
-                #     down_layer[depth] = tf.nn.relu(down_layer[depth])
-                # else:
-                #     down_layer[depth] = tf.nn.relu(down_layer[depth])
-                #
-                # down_weight2[depth] = self.get_variable(layer_name+"_W2", [3, 3, channel_n, channel_n])
-                # down_layer[depth] = tf.nn.conv2d(down_layer[depth], down_weight2[depth], strides=[1, 1, 1, 1], padding='SAME')
-                #
-                # if self.batch_mode == 'on':
-                #     down_layer[depth] = utils.BatchNorm(layer_name+"_BN2", down_layer[depth], self.training)
-                #     down_layer[depth] = tf.nn.relu(down_layer[depth])
-                # else:
-                #     down_layer[depth] = tf.nn.relu(down_layer[depth])
+        ##############################################################################################
+        # * 크기 회복층
+        # 1. Deconv-BN-Activation-Concat으로 Feature Size를 2배로 늘리고 축소 전 데이터와 합친다.
+        # 2. 채널 수를 반으로 줄인 뒤 Convolution-BN-Activation 2회 반복
+        # 3. Deconvolution으로 Feature Size를 두 배로 늘리고, 다음 단계에서는 채널 수를 반으로 줄인다.
+        #
+        ##############################################################################################
+        with tf.name_scope('up'):
+            next_input = conv_keep
+            conv_shape = conv_keep.shape[1].value
+            up_deconv = [0] * self.depth_n
+            up_conv = [0] * self.depth_n
+            for i in reversed(range(self.depth_n)):
+                # deconv / concat
+                conv_shape *= 2
+                up_deconv[i] = layer.deconv2D('deconv_' + str(i),  next_input, [3, 3, channel_n // 2, channel_n],
+                                     [self.batch_size, conv_shape, conv_shape, channel_n // 2], [1, 2, 2, 1], 'SAME')
+                up_deconv[i] = tf.reshape(up_deconv[i], shape=[self.batch_size, conv_shape, conv_shape, channel_n // 2])
+                up_deconv[i] = layer.BatchNorm('deBN_' + str(i), up_deconv[i], self.training)
+                up_deconv[i] = layer.p_relu('deact_' + str(i), up_deconv[i])
+                up_deconv[i] = layer.concat('concat_' + str(i), [up_deconv[i], down_conv[i]], 3)
+                # conv
+                channel_n //= 2
+                up_conv[i] = layer.conv2D('uconv' + str(i) + '_1', up_deconv[i], channel_n, [3, 3], [1, 1], 'same')
+                up_conv[i] = layer.BatchNorm('uBN' + str(i) + '_1', up_conv[i], self.training)
+                up_conv[i] = layer.p_relu('uact' + str(i) + '_1', up_conv[i])
+                up_conv[i] = layer.conv2D('uconv' + str(i) + '_2', up_conv[i], channel_n, [3, 3], [1, 1], 'same')
+                up_conv[i] = layer.BatchNorm('uBN' + str(i) + '_2', up_conv[i], self.training)
+                up_conv[i] = layer.p_relu('uact' + str(i) + '_2', up_conv[i])
 
-                down_layer[depth] = tf.nn.relu(down_layer[depth])
-                down_weight2[depth] = self.get_variable(layer_name + "_W2", [3, 3, channel_n, channel_n])
-                down_layer[depth] = tf.nn.conv2d(down_layer[depth], down_weight2[depth], strides=[1, 1, 1, 1], padding='SAME')
-                down_layer[depth] = tf.nn.relu(down_layer[depth])
+                next_input = up_conv[i]
 
-                X = tf.nn.max_pool(down_layer[depth], ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+            out_seg = layer.conv2D('outconv', next_input, 2, [1, 1], [1, 1], 'same')
+            out_seg = layer.BatchNorm('outBN', out_seg, self.training)
+            out_seg = tf.nn.sigmoid(out_seg)
 
-            channel_n *= 2
+        return out_seg
 
-        # Keeping
 
-        keep_weight1 = self.get_variable('KeepLayer_W1', [3, 3, channel_n//2, channel_n])
-        keep_layer = tf.nn.conv2d(X, keep_weight1, strides=[1, 1, 1, 1], padding='SAME')
 
+        # """
+        # Without Batch Normalization
+        # """
+        #
+        # channel_n=self.model_channel  # 8
+        # X = self.X
+        # down_layer = [0] * self.depth_n
+        # down_layer2 = [0] * self.depth_n
+        # down_weight1 = [0] * self.depth_n
+        # down_weight2 = [0] * self.depth_n
+        # up_layer_deconv = [0] * self.depth_n
+        # up_layer_conv = [0] * self.depth_n
+        # up_weight1 = [0] * self.depth_n
+        # up_weight2 = [0] * self.depth_n
+        #
+        # # Down-sampling
+        # for depth in range(self.depth_n):
+        #     layer_name = 'DownLayer' + str(depth + 1)
+        #     if depth + 1 == 1:
+        #         before_channel = 1
+        #     else:
+        #         before_channel = channel_n // 2
+        #
+        #     with tf.name_scope(layer_name):
+        #         # print('before :', before_channel, 'after :', channel_n)
+        #         down_weight1[depth] = self.get_variable(layer_name+"_W1", [3, 3, before_channel, channel_n])
+        #         down_layer[depth] = tf.nn.conv2d(X, down_weight1[depth], strides=[1, 1, 1, 1], padding='SAME')
+        #
+        #         if self.batch_mode == 'on':
+        #             down_layer[depth] = utils.BatchNorm(layer_name+"_BN1", down_layer[depth], self.training)
+        #             down_layer[depth] = tf.nn.relu(down_layer[depth])
+        #         else:
+        #             down_layer[depth] = tf.nn.relu(down_layer[depth])
+        #
+        #         down_weight2[depth] = self.get_variable(layer_name+"_W2", [3, 3, channel_n, channel_n])
+        #         down_layer2[depth] = tf.nn.conv2d(down_layer[depth], down_weight2[depth], strides=[1, 1, 1, 1], padding='SAME')
+        #
+        #         if self.batch_mode == 'on':
+        #             down_layer2[depth] = utils.BatchNorm(layer_name+"_BN2", down_layer2[depth], self.training)
+        #             down_layer2[depth] = tf.nn.relu(down_layer2[depth])
+        #         else:
+        #             down_layer2[depth] = tf.nn.relu(down_layer2[depth])
+        #
+        #         X = tf.nn.max_pool(down_layer2[depth], ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+        #
+        #     channel_n *= 2
+        #
+        # # Keeping
+        #
+        # keep_weight1 = self.get_variable('KeepLayer_W1', [3, 3, channel_n//2, channel_n])
+        # keep_layer = tf.nn.conv2d(X, keep_weight1, strides=[1, 1, 1, 1], padding='SAME')
+        #
         # if self.batch_mode == 'on':
         #     keep_layer = utils.BatchNorm("KeepLayer_BN1", keep_layer, self.training)
         #     keep_layer = tf.nn.relu(keep_layer)
         # else:
         #     keep_layer = tf.nn.relu(keep_layer)
+        #
         # keep_weight2 = self.get_variable('KeepLayer_W2', [3, 3, channel_n, channel_n])
+        # keep_layer2 = tf.nn.conv2d(keep_layer, keep_weight2, strides=[1, 1, 1, 1], padding='SAME')
+        #
         # if self.batch_mode == 'on':
-        #     keep_layer = utils.BatchNorm("KeepLayer_BN2", keep_layer, self.training)
-        #     keep_layer = tf.nn.relu(keep_layer)
-        # else:
-        #     keep_layer = tf.nn.relu(keep_layer)
-
-        keep_layer = tf.nn.relu(keep_layer)
-        keep_weight2 = self.get_variable('KeepLayer_W2', [3, 3, channel_n, channel_n])
-        keep_layer = tf.nn.conv2d(keep_layer, keep_weight2, strides=[1, 1, 1, 1], padding='SAME')
-        keep_layer = tf.nn.relu(keep_layer)
-
-        # Up-Sampling
-        X = keep_layer
-        for depth in reversed(range(self.depth_n)):
-            channel_n //= 2
-            layer_name = 'UpLayer' + str(depth+1)
-            with tf.name_scope(layer_name):
-
-                # if self.batch_mode == 'on':
-                #     up_layer_deconv[depth] = tf.layers.conv2d_transpose(X, filters=channel_n, kernel_size=2, strides=2,padding='SAME')
-                #     up_layer_deconv[depth] = tf.reshape(up_layer_deconv[depth], shape=[-1, ])
-                #     up_layer_deconv[depth] = utils.BatchNorm(layer_name+"_BN1", up_layer_deconv[depth], self.training)
-                # else:
-                #     up_layer_deconv[depth] = tf.layers.conv2d_transpose(X, filters=channel_n, kernel_size=2, strides=2, padding='SAME')
-                # print('upsampling X shape:', X.shape, ', depth:', depth)
-                up_layer_deconv[depth] = tf.layers.conv2d_transpose(X, filters=channel_n, kernel_size=2, strides=2, padding='SAME')
-                # print('after deconv shape:', up_layer_deconv[depth].shape, ', depth:', depth)
-                up_layer_deconv[depth] = tf.concat([up_layer_deconv[depth], down_layer[depth]], 3)
-                # print('after concat shape:', up_layer_deconv[depth].shape, ', depth:', depth)
-                up_weight1[depth] = self.get_variable(layer_name + "_W1", [3, 3, channel_n*2, channel_n])
-                up_layer_conv[depth] = tf.nn.conv2d(up_layer_deconv[depth], up_weight1[depth], strides=[1, 1, 1, 1], padding='SAME')
-
-                # if self.batch_mode == 'on':
-                #     up_layer_conv[depth] = utils.BatchNorm(layer_name+"_BN1", up_layer_conv[depth], self.training)
-                #     up_layer_conv[depth] = tf.nn.relu(up_layer_conv[depth])
-                # else:
-                #     up_layer_conv[depth] = tf.nn.relu(up_layer_conv[depth])
-
-                up_layer_conv[depth] = tf.nn.relu(up_layer_conv[depth])
-                up_weight2[depth] = self.get_variable(layer_name + "_W2", [3, 3, channel_n, channel_n])
-                up_layer_conv[depth] = tf.nn.conv2d(up_layer_conv[depth], up_weight2[depth], strides=[1, 1, 1, 1], padding='SAME')
-
-                # if self.batch_mode == 'on':
-                #     up_layer_conv[depth] = utils.BatchNorm(layer_name+"_BN2", up_layer_conv[depth], self.training)
-                #     X = tf.nn.relu(up_layer_conv[depth])
-                # else:
-                #     X = tf.nn.relu(up_layer_conv[depth])
-
-                X = tf.nn.relu(up_layer_conv[depth])
-
-        # Out layer
-
-        with tf.name_scope('OutLayer'):
-            out_weight=self.get_variable("OutLayer_W", [1,1,channel_n,2])
-            out_layer=tf.nn.conv2d(X,out_weight, strides=[1,1,1,1], padding='SAME')
-            out_layer=tf.nn.sigmoid(out_layer)
-            Y_pred=out_layer
-
-        return Y_pred
+        #     keep_layer2 = utils.BatchNorm("KeepLayer_BN2", keep_layer2, self.training)
+        #
+        # keep_layer2 = tf.nn.relu(keep_layer2)
+        #
+        # # Up-Sampling
+        # X = keep_layer2
+        # for depth in reversed(range(self.depth_n)):
+        #     channel_n //= 2
+        #     layer_name = 'UpLayer' + str(depth+1)
+        #     with tf.name_scope(layer_name):
+        #
+        #         up_layer_deconv[depth] = tf.layers.conv2d_transpose(X, filters=channel_n, kernel_size=2, strides=2,padding='SAME')
+        #
+        #         if self.batch_mode == 'on':
+        #             # up_layer_deconv[depth] = tf.reshape(up_layer_deconv[depth], shape=[-1, ])
+        #             up_layer_deconv[depth] = utils.BatchNorm(layer_name+"_BN1", up_layer_deconv[depth], self.training)
+        #
+        #         # print('after deconv shape:', up_layer_deconv[depth].shape, ', depth:', depth)
+        #         up_layer_deconv[depth] = tf.concat([up_layer_deconv[depth], down_layer[depth]], 3)
+        #         # print('after concat shape:', up_layer_deconv[depth].shape, ', depth:', depth)
+        #         up_weight1[depth] = self.get_variable(layer_name + "_W1", [3, 3, channel_n*2, channel_n])
+        #         up_layer_conv[depth] = tf.nn.conv2d(up_layer_deconv[depth], up_weight1[depth], strides=[1, 1, 1, 1], padding='SAME')
+        #
+        #         if self.batch_mode == 'on':
+        #             up_layer_conv[depth] = utils.BatchNorm(layer_name+"_BN1", up_layer_conv[depth], self.training)
+        #
+        #         up_layer_conv[depth] = tf.nn.relu(up_layer_conv[depth])
+        #         up_weight2[depth] = self.get_variable(layer_name + "_W2", [3, 3, channel_n, channel_n])
+        #         up_layer_conv[depth] = tf.nn.conv2d(up_layer_conv[depth], up_weight2[depth], strides=[1, 1, 1, 1], padding='SAME')
+        #
+        #         # if self.batch_mode == 'on':
+        #         #     up_layer_conv[depth] = utils.BatchNorm(layer_name+"_BN2", up_layer_conv[depth], self.training)
+        #         #     X = tf.nn.relu(up_layer_conv[depth])
+        #         # else:
+        #         #     X = tf.nn.relu(up_layer_conv[depth])
+        #
+        #         X = tf.nn.relu(up_layer_conv[depth])
+        #
+        # # Out layer
+        #
+        # with tf.name_scope('OutLayer'):
+        #     out_weight=self.get_variable("OutLayer_W", [1,1,channel_n,2])
+        #     out_layer=tf.nn.conv2d(X,out_weight, strides=[1,1,1,1], padding='SAME')
+        #     out_layer=tf.nn.sigmoid(out_layer)
+        #     Y_pred=out_layer
+        #
+        # return Y_pred
