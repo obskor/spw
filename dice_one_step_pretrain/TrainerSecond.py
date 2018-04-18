@@ -80,6 +80,9 @@ class TrainerSecond:
         with tf.Session() as sess:
             saver = tf.train.Saver()
 
+            saver.restore(sess, self.model_path)
+            print('Model Loaded!')
+
             # TB
             self.writer.add_graph(sess.graph)
 
@@ -231,7 +234,7 @@ class TrainerSecond:
                       'Validation Accuracy:{:.4f}   '.format(total_vali_acc / val_step),
                       'Training time: {:.2f}  '.format(training_time))
 
-                saver.save(sess, self.model_path)
+                saver.save(sess, self.model_path.replace('first', 'second'))
                 print("MODEL SAVED")
 
             print("TRAINING COMPLETE")

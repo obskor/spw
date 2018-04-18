@@ -1,13 +1,13 @@
 import tensorflow as tf
 import loader
-import unet_second_step_model
+import unet_first_step_model
 import time
 import os
 import cv2
 import numpy as np
 
 
-class TrainerSecond:
+class Trainer:
     def __init__(self, training_data_path, model_path, validation_percentage,
                  initial_learning_rate, decay_step,
                  decay_rate, epoch, img_size,
@@ -26,14 +26,14 @@ class TrainerSecond:
         self.batch_size = batch_size
         self.batch_mode = batch_norm_mode
         self.depth = depth
-        self.option_name = option_name
+        self.option_name = option_name + '-first_step'
 
         self.data_loader = loader.DataLoader(img_size=img_size)
 
         print('data Loading Started')
         dstime = time.time()
         self.img_list, self.label_list, self.data_count = self.data_loader.data_list_load(self.training_path,
-                                                                                          mode='train', step=2, option_name=self.option_name)
+                                                                                          mode='train', step=1, option_name=self.option_name)
         self.shuffled_img_list, self.shuffled_label_list = self.data_loader.data_shuffle(self.img_list, self.label_list)
         detime = time.time()
         print('data Loading Complete. Consumption Time :', detime - dstime)
@@ -48,12 +48,12 @@ class TrainerSecond:
         print('Train Dataset Count:', len(self.trainX), 'Validation Dataset Count:', len(self.valX))
         print('data Split Complete. Consumption Time :', dsetime - dsstime)
 
-        self.model = unet_second_step_model.Model(batch_norm_mode=self.batch_mode, depth=self.depth, img_size=img_size,
+        self.model = unet_first_step_model.Model(batch_norm_mode=self.batch_mode, depth=self.depth, img_size=img_size,
                                                  model_root_channel=root_channel, n_channel=1, n_class=n_class, batch_size=self.batch_size)
 
         # TB
         self.merged_summary = tf.summary.merge_all()
-        self.writer = tf.summary.FileWriter('./logs/' + option_name + '-second')
+        self.writer = tf.summary.FileWriter('./logs/' + option_name + '-first')
 
     def optimizer(self, global_step):
         exponential_decay_learning_rate = tf.train.exponential_decay(learning_rate=self.init_learning,
@@ -72,10 +72,6 @@ class TrainerSecond:
 
         train_step = int(len(self.trainX) / self.batch_size)
         val_step = int(len(self.valX) / self.batch_size)
-        #
-        # print(self.trainX)
-        # print(self.trainY)
-        # print(self.valX)
 
         with tf.Session() as sess:
             saver = tf.train.Saver()
@@ -90,6 +86,7 @@ class TrainerSecond:
 
             total_training_time = 0
             for epoch in range(self.epoch_num):
+
                 start = time.time()
 
                 total_cost = 0
@@ -123,8 +120,7 @@ class TrainerSecond:
                 for idx in range(val_step):
                     vali_batch_xs_list, vali_batch_ys_list = self.data_loader.next_batch(self.valX, self.valY, idx,
                                                                                          self.batch_size)
-                    vali_batch_xs, vali_batch_ys = self.data_loader.read_data(vali_batch_xs_list, vali_batch_ys_list,
-                                                                              'validation')
+                    vali_batch_xs, vali_batch_ys = self.data_loader.read_data(vali_batch_xs_list, vali_batch_ys_list, 'validation')
 
                     val_feed_dict = {self.model.X: vali_batch_xs, self.model.Y: vali_batch_ys,
                                      self.model.training: False, self.model.drop_rate: 0}
@@ -136,14 +132,14 @@ class TrainerSecond:
                     total_vali_unfiltered_iou += np.mean(vali_iou)
 
                     iou_list = []
-
                     for iou in vali_iou:
+                        print(iou)
                         if iou > 0.02:
                             iou_list.append(iou)
 
                     after_filtered_length = len(iou_list)
 
-                    acc = after_filtered_length / before_filtered_length
+                    acc = after_filtered_length/before_filtered_length
 
                     if len(iou_list) == 0:
                         val_mean_iou = 0
@@ -154,11 +150,10 @@ class TrainerSecond:
                     total_vali_iou += val_mean_iou
 
                     if (epoch + 1) % 5 == 0 or epoch == 0 or (epoch + 1) == self.epoch_num:
-                        val_img_feed_dict = {self.model.X: vali_batch_xs, self.model.training: False,
-                                             self.model.drop_rate: 0}
+                        val_img_feed_dict = {self.model.X: vali_batch_xs, self.model.training: False, self.model.drop_rate: 0}
                         predicted_result = sess.run(self.model.foreground_predicted, feed_dict=val_img_feed_dict)
 
-                        val_img_save_path = './validation_result_imgs/' + self.option_name + '/second/' + str(epoch)
+                        val_img_save_path = './validation_result_imgs/' + self.option_name + '/first/' + str(epoch)
                         val_img_overlay_path = os.path.join(val_img_save_path, 'overlay')
                         val_img_y_path = os.path.join(val_img_save_path, 'y')
                         val_img_label_path = os.path.join(val_img_save_path, 'label')
@@ -211,7 +206,7 @@ class TrainerSecond:
                                                      0)
                             cv2.imwrite(val_img_overlay_fullpath, result * 254)
                             cv2.imwrite(val_img_y_fullpath, pred_image_original * 254)
-                            cv2.imwrite(val_img_label_fullpath, vali_batch_ys[idx][:, :, 0])
+                            cv2.imwrite(val_img_label_fullpath, vali_batch_ys[idx][:,:,0])
 
                 end = time.time()
                 training_time = end - start
@@ -221,7 +216,7 @@ class TrainerSecond:
                 summary = sess.run(self.merged_summary, feed_dict=val_feed_dict)
                 self.writer.add_summary(summary, global_step=epoch)
                 tf.summary.scalar('Filtered IoU', total_vali_iou / val_step)
-                tf.summary.scalar('Unfiltered IoU', total_vali_acc / val_step)
+                tf.summary.scalar('Unfiltered IoU', total_vali_unfiltered_iou / val_step)
                 tf.summary.scalar('Accuracy', total_vali_acc / val_step)
 
                 print('Epoch:', '[%d' % (epoch + 1), '/ %d]  ' % self.epoch_num,

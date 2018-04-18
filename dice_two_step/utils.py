@@ -300,7 +300,7 @@ def dice_loss(output, target, loss_type='jaccard', axis=(1, 2, 3), smooth=1e-5):
         l = tf.reduce_sum(foreground_predicted, axis=axis)
         r = tf.reduce_sum(foreground_truth, axis=axis)
     else:
-        raise Exception("Unknow loss_type")
+        raise Exception("Unknown loss_type")
     ## old axis=[0,1,2,3]
     # dice = 2 * (inse) / (l + r)
     # epsilon = 1e-5
